@@ -1,0 +1,341 @@
+{
+	"info": {
+		"_postman_id": "81b7b6e1-d069-410e-802b-0e9a5978c348",
+		"name": "Tema 18 - DavidSafta",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "50584929",
+		"_collection_link": "https://davidsafta-3946470.postman.co/workspace/David's-Workspace~d82e3561-c2cd-484c-8375-8a4da4343f16/collection/50584929-81b7b6e1-d069-410e-802b-0e9a5978c348?action=share&source=collection_link&creator=50584929"
+	},
+	"item": [
+		{
+			"name": "Register",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							"// Generate unique email and save it in environment\r",
+							"const timestamp = Date.now();\r",
+							"const newEmail = `test_user_${timestamp}@example.com`;\r",
+							"\r",
+							"pm.environment.set(\"email\", newEmail);\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// 1) Status 201\r",
+							"pm.test(\"Status code is 201\", () => {\r",
+							"  pm.response.to.have.status(201);\r",
+							"});\r",
+							"\r",
+							"const json = pm.response.json();\r",
+							"\r",
+							"// 2) status = success\r",
+							"pm.test(\"Register status is success\", () => {\r",
+							"  pm.expect(json.status, \"status should be success\").to.eql(\"success\");\r",
+							"});\r",
+							"\r",
+							"// 3) Save username & user id for next requests\r",
+							"if (json.username) {\r",
+							"  pm.environment.set(\"username\", json.username);\r",
+							"}\r",
+							"if (json.user_id) {\r",
+							"  pm.environment.set(\"userid\", json.user_id);\r",
+							"}\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"first_name\": \"Test\",\r\n  \"last_name\": \"User\",\r\n  \"email\": \"{{email}}\",\r\n  \"password\": \"Password123!\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/user/register.php",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"user",
+						"register.php"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Login",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"function findField(obj, fieldName) {\r",
+							"  for (const key in obj) {\r",
+							"    if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;\r",
+							"    const value = obj[key];\r",
+							"    if (key === fieldName) return value;\r",
+							"    if (value && typeof value === \"object\") {\r",
+							"      const found = findField(value, fieldName);\r",
+							"      if (found !== undefined) return found;\r",
+							"    }\r",
+							"  }\r",
+							"}\r",
+							"\r",
+							"// 1) Status code 200\r",
+							"pm.test(\"Status code is 200\", () => {\r",
+							"  pm.response.to.have.status(200);\r",
+							"});\r",
+							"\r",
+							"const json = pm.response.json();\r",
+							"\r",
+							"// 2) status = success\r",
+							"pm.test(\"Login status is success\", () => {\r",
+							"  const status = (json.status || \"\").toLowerCase();\r",
+							"  pm.expect(status).to.eql(\"success\");\r",
+							"});\r",
+							"\r",
+							"// 3) save api_key (for Get Profile)\r",
+							"const apiKey = findField(json, \"api_key\");\r",
+							"if (apiKey) {\r",
+							"  pm.environment.set(\"api_key\", apiKey);\r",
+							"}\r",
+							"\r",
+							"// 4) save token (for Delete Profile)\r",
+							"const token = findField(json, \"token\");\r",
+							"if (token) {\r",
+							"  pm.environment.set(\"token\", token);\r",
+							"}\r",
+							"\r",
+							"// 5) userId from response (user.id)\r",
+							"const userIdFromResponse = findField(json, \"id\");\r",
+							"if (userIdFromResponse) {\r",
+							"  pm.environment.set(\"userid_from_response\", userIdFromResponse);\r",
+							"}\r",
+							"\r",
+							"// 6) userId from JWT, saved as 'userid' (cerința temei)\r",
+							"pm.test(\"JWT contains same user id\", () => {\r",
+							"  pm.expect(token, \"token should exist\").to.exist;\r",
+							"\r",
+							"  const parts = token.split(\".\");\r",
+							"  pm.expect(parts.length, \"JWT should have 3 parts\").to.eql(3);\r",
+							"\r",
+							"  function base64UrlDecode(str) {\r",
+							"  let base64 = str.replace(/-/g, \"+\").replace(/_/g, \"/\");\r",
+							"  while (base64.length % 4 !== 0) base64 += \"=\";\r",
+							"  return atob(base64);      \r",
+							"}\r",
+							"\r",
+							"\r",
+							"  const payloadJson = JSON.parse(base64UrlDecode(parts[1]));\r",
+							"  const userIdFromJwt = payloadJson.user_id || payloadJson.id;\r",
+							"\r",
+							"  pm.expect(userIdFromJwt, \"user id in JWT\").to.exist;\r",
+							"\r",
+							"  // cerința: salvăm userId pe baza JWT\r",
+							"  pm.environment.set(\"userid\", userIdFromJwt);\r",
+							"\r",
+							"  // și verificăm că e același cu cel din răspuns\r",
+							"  if (userIdFromResponse) {\r",
+							"    pm.expect(String(userIdFromJwt)).to.eql(String(userIdFromResponse));\r",
+							"  }\r",
+							"});\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				},
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"username\": \"{{username}}\",\r\n  \"password\": \"Password123!\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/user/login.php",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"user",
+						"login.php"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Profile",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// 1) Status code 200\r",
+							"pm.test(\"Status code is 200\", () => {\r",
+							"  pm.response.to.have.status(200);\r",
+							"});\r",
+							"\r",
+							"// 2) Email from profile = email generated at Register\r",
+							"pm.test(\"Email matches generated email\", () => {\r",
+							"  const json = pm.response.json();\r",
+							"  const expectedEmail = pm.environment.get(\"email\");\r",
+							"\r",
+							"  pm.expect(expectedEmail, \"environment email should be set\").to.exist;\r",
+							"  pm.expect(json.status, \"status should be success\").to.eql(\"success\");\r",
+							"  pm.expect(json.user && json.user.email, \"user.email should exist\").to.eql(expectedEmail);\r",
+							"});\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				},
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "apikey",
+					"apikey": [
+						{
+							"key": "value",
+							"value": "{{api_key}}",
+							"type": "string"
+						},
+						{
+							"key": "key",
+							"value": "Authorization",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{baseUrl}}/user/get_profile.php?user_id={{userid}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"user",
+						"get_profile.php"
+					],
+					"query": [
+						{
+							"key": "user_id",
+							"value": "{{userid}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Profile",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// 1) Status code 200\r",
+							"pm.test(\"Status code is 200\", () => {\r",
+							"  pm.response.to.have.status(200);\r",
+							"});\r",
+							"\r",
+							"// 2) Status = success\r",
+							"pm.test(\"Profile is deleted successfully\", () => {\r",
+							"  const json = pm.response.json();\r",
+							"  pm.expect(json.status, \"status should be success\").to.eql(\"success\");\r",
+							"});\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{token}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/user/delete_profile.php",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"user",
+						"delete_profile.php"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
